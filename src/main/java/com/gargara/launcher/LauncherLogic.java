@@ -4,6 +4,7 @@ import org.to2mbn.jmccc.mcdownloader.MinecraftDownloader;
 import org.to2mbn.jmccc.mcdownloader.MinecraftDownloaderBuilder;
 import org.to2mbn.jmccc.option.LaunchOption;
 import org.to2mbn.jmccc.option.MinecraftDirectory;
+import org.to2mbn.jmccc.option.ServerInfo;
 import org.to2mbn.jmccc.auth.OfflineAuthenticator;
 import org.to2mbn.jmccc.mcdownloader.download.concurrent.CallbackAdapter;
 import org.to2mbn.jmccc.version.Version;
@@ -249,6 +250,9 @@ public class LauncherLogic {
         // Bellek ayarları - 4 GB RAM tahsisi (mod paketi için gerekli)
         option.setMaxMemory(4096);
         option.setMinMemory(1024);
+        
+        // Doğrudan sunucuya bağlanma
+        option.setServerInfo(new ServerInfo("130.61.80.148", 25565));
 
         mc.launch(option, new ProcessListener() {
             @Override
