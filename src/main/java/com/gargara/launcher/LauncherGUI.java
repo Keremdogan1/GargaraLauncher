@@ -123,8 +123,7 @@ public class LauncherGUI extends JFrame {
                 });
                 
                 SwingUtilities.invokeLater(() -> {
-                    statusLabel.setText("Oyun çalışıyor...");
-                    playButton.setText("ÇALIŞIYOR");
+                    dispose(); // Minecraft açıldığında Launcher'ı kapat
                 });
             } catch (Exception ex) {
                 SwingUtilities.invokeLater(() -> {

@@ -58,11 +58,28 @@ public class LauncherLogic {
         callback.updateProgress(-1, "Oyun dosyaları indiriliyor... (Bu işlem biraz sürebilir)");
         downloadGame(dir, callback);
 
+        // ReplayMod ayarlarını yap (otomatik kaydı kapat)
+        configureReplayMod(mcDir);
+
         // 4. Oyunu Başlat
         callback.updateProgress(90, "Oyun başlatılıyor...");
         startGame(dir, username);
         
         callback.updateProgress(100, "Oyun açıldı. Pencereyi kapatabilirsiniz.");
+    }
+
+    private static void configureReplayMod(File mcDir) {
+        try {
+            File configDir = new File(mcDir, "config");
+            if (!configDir.exists()) configDir.mkdirs();
+            
+            File replayConfig = new File(configDir, "replaymod.json");
+            if (!replayConfig.exists()) {
+                // Replay mod otomatik kayıt özelliğini kapatıyoruz
+                String json = "{\n  \"recording\": {\n    \"autoStartServer\": false,\n    \"autoStartSingleplayer\": false\n  }\n}";
+                Files.writeString(replayConfig.toPath(), json);
+            }
+        } catch (Exception ignored) {}
     }
 
     private static void downloadAndInstallMods(File mcDir, ProgressCallback callback) throws Exception {
@@ -268,6 +285,7 @@ public class LauncherLogic {
             @Override
             public void onExit(int code) {
                 System.out.println("Minecraft kapandı. Çıkış kodu: " + code);
+                System.exit(0); // Minecraft kapanınca Launcher'ın arka plan işlemlerini tamamen bitir
             }
         });
     }
