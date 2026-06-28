@@ -108,22 +108,37 @@ public class LauncherGUI extends JFrame {
 
         Thread installThread = new Thread(() -> {
             try {
-                LauncherLogic.launchGame(username, path, (percentage, status) -> {
-                    SwingUtilities.invokeLater(() -> {
-                        if (percentage < 0) {
-                            progressBar.setIndeterminate(true);
-                            progressBar.setStringPainted(false);
-                        } else {
-                            progressBar.setIndeterminate(false);
-                            progressBar.setStringPainted(true);
-                            progressBar.setValue(percentage);
-                        }
-                        statusLabel.setText(status);
-                    });
+                LauncherLogic.launchGame(username, path, new LauncherLogic.ProgressCallback() {
+                    @Override
+                    public void updateProgress(int percentage, String status) {
+                        SwingUtilities.invokeLater(() -> {
+                            if (percentage < 0) {
+                                progressBar.setIndeterminate(true);
+                                progressBar.setStringPainted(false);
+                            } else {
+                                progressBar.setIndeterminate(false);
+                                progressBar.setStringPainted(true);
+                                progressBar.setValue(percentage);
+                            }
+                            statusLabel.setText(status);
+                        });
+                    }
+
+                    @Override
+                    public void onGameExit() {
+                        SwingUtilities.invokeLater(() -> {
+                            playButton.setEnabled(true);
+                            usernameField.setEnabled(true);
+                            playButton.setText("OYNA");
+                            statusLabel.setText("Oyun kapandı. Yeniden oynamak için tıklayın.");
+                            progressBar.setValue(0);
+                        });
+                    }
                 });
                 
                 SwingUtilities.invokeLater(() -> {
-                    dispose(); // Minecraft açıldığında Launcher'ı kapat
+                    statusLabel.setText("Oyun arka planda çalışıyor...");
+                    playButton.setText("OYUNDA");
                 });
             } catch (Exception ex) {
                 SwingUtilities.invokeLater(() -> {

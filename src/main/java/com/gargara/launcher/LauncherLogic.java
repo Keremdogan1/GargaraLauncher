@@ -63,9 +63,9 @@ public class LauncherLogic {
 
         // 4. Oyunu Başlat
         callback.updateProgress(90, "Oyun başlatılıyor...");
-        startGame(dir, username);
+        startGame(dir, username, callback);
         
-        callback.updateProgress(100, "Oyun açıldı. Pencereyi kapatabilirsiniz.");
+        callback.updateProgress(100, "Oyun açıldı. Arkada çalışıyor...");
     }
 
     private static void configureReplayMod(File mcDir) {
@@ -260,7 +260,7 @@ public class LauncherLogic {
         }).get();
     }
 
-    private static void startGame(MinecraftDirectory dir, String username) throws Exception {
+    private static void startGame(MinecraftDirectory dir, String username, ProgressCallback callback) throws Exception {
         Launcher mc = LauncherBuilder.buildDefault();
         LaunchOption option = new LaunchOption(FABRIC_VERSION_ID, new OfflineAuthenticator(username), dir);
         
@@ -285,12 +285,13 @@ public class LauncherLogic {
             @Override
             public void onExit(int code) {
                 System.out.println("Minecraft kapandı. Çıkış kodu: " + code);
-                System.exit(0); // Minecraft kapanınca Launcher'ın arka plan işlemlerini tamamen bitir
+                callback.onGameExit(); // Oyuna çıkış yapıldığını GUI'ye bildir
             }
         });
     }
 
     public interface ProgressCallback {
         void updateProgress(int percentage, String status);
+        void onGameExit();
     }
 }
