@@ -58,8 +58,8 @@ public class LauncherLogic {
         callback.updateProgress(-1, "Oyun dosyaları indiriliyor... (Bu işlem biraz sürebilir)");
         downloadGame(dir, callback);
 
-        // ReplayMod ayarlarını yap (otomatik kaydı kapat)
-        configureReplayMod(mcDir);
+        // Özel ayarları uygula (Replay mod silme, GUI boyutu 3 yapma)
+        applyCustomGameSettings(mcDir);
 
         // 4. Oyunu Başlat
         callback.updateProgress(90, "Oyun başlatılıyor...");
@@ -68,16 +68,40 @@ public class LauncherLogic {
         callback.updateProgress(100, "Oyun açıldı. Arkada çalışıyor...");
     }
 
-    private static void configureReplayMod(File mcDir) {
+    private static void applyCustomGameSettings(File mcDir) {
+        // 1. Replay Mod'u tamamen sil
+        File modsDir = new File(mcDir, "mods");
+        if (modsDir.exists()) {
+            File[] files = modsDir.listFiles();
+            if (files != null) {
+                for (File f : files) {
+                    if (f.getName().toLowerCase().contains("replaymod")) {
+                        f.delete();
+                        System.out.println("Replay Mod silindi: " + f.getName());
+                    }
+                }
+            }
+        }
+
+        // 2. GUI Boyutunu 3 yap (options.txt)
         try {
-            File configDir = new File(mcDir, "config");
-            if (!configDir.exists()) configDir.mkdirs();
-            
-            File replayConfig = new File(configDir, "replaymod.json");
-            if (!replayConfig.exists()) {
-                // Replay mod otomatik kayıt özelliğini kapatıyoruz
-                String json = "{\n  \"recording\": {\n    \"autoStartServer\": false,\n    \"autoStartSingleplayer\": false\n  }\n}";
-                Files.writeString(replayConfig.toPath(), json);
+            File optionsFile = new File(mcDir, "options.txt");
+            if (!optionsFile.exists()) {
+                Files.writeString(optionsFile.toPath(), "guiScale:3\n");
+            } else {
+                java.util.List<String> lines = Files.readAllLines(optionsFile.toPath());
+                boolean found = false;
+                for (int i = 0; i < lines.size(); i++) {
+                    if (lines.get(i).startsWith("guiScale:")) {
+                        lines.set(i, "guiScale:3");
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    lines.add("guiScale:3");
+                }
+                Files.write(optionsFile.toPath(), lines);
             }
         } catch (Exception ignored) {}
     }
@@ -268,8 +292,9 @@ public class LauncherLogic {
         option.setMaxMemory(4096);
         option.setMinMemory(1024);
         
-        // Doğrudan sunucuya bağlanma
-        option.setServerInfo(new ServerInfo("130.61.80.148", 25565));
+        // Doğrudan sunucuya bağlanma (Minecraft 1.20+ için Quick Play özelliği)
+        option.extraMinecraftArguments().add("--quickPlayMultiplayer");
+        option.extraMinecraftArguments().add("130.61.80.148:25565");
 
         mc.launch(option, new ProcessListener() {
             @Override
