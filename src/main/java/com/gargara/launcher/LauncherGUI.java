@@ -10,7 +10,7 @@ import javax.imageio.ImageIO;
 
 public class LauncherGUI extends JFrame {
     
-    public static final String LAUNCHER_VERSION = "v3.2.3";
+    public static final String LAUNCHER_VERSION = "v3.2.5";
 
     private JTextField usernameField;
     private JButton playButton;
