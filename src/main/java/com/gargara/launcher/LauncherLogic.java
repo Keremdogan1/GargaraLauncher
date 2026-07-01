@@ -20,13 +20,18 @@ import java.nio.file.Path;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
 public class LauncherLogic {
 
     public static final String MC_VERSION = "1.20.1";
     public static final String FABRIC_VERSION = "0.17.2";
     public static final String FABRIC_VERSION_ID = "fabric-loader-" + FABRIC_VERSION + "-" + MC_VERSION;
-    public static final String MODS_DRIVE_FILE_ID = "1kKMhQ4JDM3gf-XeS0VGmAwAsWwqK1W-j";
-    public static final String EXTRAS_DRIVE_FILE_ID = "1dijZpP2KYTLfJSFLKtjEgmNAVrnC-SD5";
+    public static final String MODS_GITHUB_REPO = "Keremdogan1/GargaraLauncher";
+    public static final String EXTRAS_DRIVE_FILE_ID = "1eUdfMy4z_tDQ7FoCvg1hypSIPGtlhg2v";
 
     public static String getDefaultMinecraftDir() {
         String os = System.getProperty("os.name").toLowerCase();
@@ -148,33 +153,72 @@ public class LauncherLogic {
         } catch (Exception ignored) {}
     }
 
-    // Bu ID, icinde sadece "v2" gibi bir surum yazan kucuk bir metin dosyasinin ID'sidir
-    public static final String MODS_VERSION_DRIVE_ID = "1uxxYC_u50dHKPXfgvYvpXDZBGMS39g77";
+
+
+    private static JsonObject getLatestGitHubModsRelease() {
+        try {
+            String apiUrl = "https://api.github.com/repos/" + MODS_GITHUB_REPO + "/releases";
+            HttpURLConnection conn = (HttpURLConnection) new URL(apiUrl).openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/vnd.github.v3+json");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+
+            if (conn.getResponseCode() == 200) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+                reader.close();
+
+                com.google.gson.JsonArray releases = com.google.gson.JsonParser.parseString(response.toString()).getAsJsonArray();
+                for (com.google.gson.JsonElement el : releases) {
+                    JsonObject release = el.getAsJsonObject();
+                    String tag = release.get("tag_name").getAsString();
+                    if (tag.startsWith("mods-")) {
+                        return release;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("GitHub'dan mod sürümleri kontrol edilemedi: " + e.getMessage());
+        }
+        return null;
+    }
+
+    private static String getAssetDownloadUrl(JsonObject release, String fileNamePart) {
+        if (release != null && release.has("assets")) {
+            com.google.gson.JsonArray assets = release.getAsJsonArray("assets");
+            for (com.google.gson.JsonElement el : assets) {
+                JsonObject asset = el.getAsJsonObject();
+                String assetName = asset.get("name").getAsString();
+                if (assetName.contains(fileNamePart)) {
+                    return asset.get("browser_download_url").getAsString();
+                }
+            }
+        }
+        return null;
+    }
 
     private static void downloadAndInstallMods(File mcDir, ProgressCallback callback) throws Exception {
         File modsDir = new File(mcDir, "mods");
         File markerFile = new File(mcDir, ".mods_version.txt");
 
-        callback.updateProgress(5, "Mod versiyonu kontrol ediliyor...");
+        callback.updateProgress(5, "Mod versiyonu GitHub üzerinden kontrol ediliyor...");
         String localVersion = "";
         if (markerFile.exists()) {
             localVersion = Files.readString(markerFile.toPath()).trim();
         }
 
-        String remoteVersion = "v1"; // Varsayılan
-        // GDrive'dan güncel versiyon numarasını çek
-        if (!MODS_VERSION_DRIVE_ID.equals("BURAYA_VERSION_TXT_ID_GELECEK")) {
-            File tempVersionFile = new File(mcDir, "temp_version.txt");
-            try {
-                downloadFromGoogleDrive(MODS_VERSION_DRIVE_ID, tempVersionFile, null);
-                if (tempVersionFile.exists()) {
-                    remoteVersion = Files.readString(tempVersionFile.toPath()).trim();
-                    tempVersionFile.delete();
-                }
-            } catch (Exception e) {
-                System.err.println("Mod versiyonu kontrol edilemedi, lokal versiyon kullanilacak.");
-                remoteVersion = localVersion.isEmpty() ? "v1" : localVersion;
-            }
+        String remoteVersion = "v1";
+        String downloadUrl = null;
+        
+        JsonObject latestRelease = getLatestGitHubModsRelease();
+        if (latestRelease != null) {
+            remoteVersion = latestRelease.get("tag_name").getAsString();
+            downloadUrl = getAssetDownloadUrl(latestRelease, "mods"); // e.g. mods.zip
         }
 
         // Modlar zaten kuruluysa ve versiyon aynıysa atla
@@ -184,7 +228,7 @@ public class LauncherLogic {
             return;
         }
 
-        callback.updateProgress(8, "Yeni mod paketi bulundu! Eski modlar siliniyor...");
+        callback.updateProgress(8, "Yeni mod paketi (" + remoteVersion + ") bulundu! Eski modlar siliniyor...");
         if (modsDir.exists()) {
             File[] oldMods = modsDir.listFiles();
             if (oldMods != null) {
@@ -194,13 +238,12 @@ public class LauncherLogic {
             modsDir.mkdirs();
         }
 
-        File modsZip;
+        File modsZip = new File(mcDir, "mods_download.zip");
 
         // Önce JAR içinde gömülü mods.zip var mı kontrol et (offline dağıtım)
         InputStream embeddedMods = LauncherLogic.class.getResourceAsStream("/mods.zip");
-        if (embeddedMods != null && localVersion.isEmpty()) { // Sadece hiç kurulmamışsa gömülüyü kullan
+        if (embeddedMods != null && localVersion.isEmpty() && downloadUrl == null) {
             callback.updateProgress(8, "Gömülü modlar çıkartılıyor...");
-            modsZip = new File(mcDir, "mods_temp.zip");
             try (FileOutputStream fos = new FileOutputStream(modsZip)) {
                 byte[] buffer = new byte[65536];
                 int len;
@@ -211,10 +254,13 @@ public class LauncherLogic {
                 embeddedMods.close();
             }
         } else {
-            // Google Drive'dan indir
-            callback.updateProgress(5, "Yeni modlar indiriliyor (Bu işlem boyutuna göre sürebilir)...");
-            modsZip = new File(mcDir, "mods_download.zip");
-            downloadFromGoogleDrive(MODS_DRIVE_FILE_ID, modsZip, callback);
+            if (downloadUrl != null) {
+                callback.updateProgress(5, "Yeni modlar GitHub'dan indiriliyor (Çok daha hızlı)...");
+                downloadFile(downloadUrl, modsZip, callback);
+            } else {
+                callback.updateProgress(10, "Mod güncellemesi bulunamadı (GitHub Release eksik).");
+                return;
+            }
         }
 
         // ZIP'i mods klasörüne çıkart
@@ -285,29 +331,31 @@ public class LauncherLogic {
         }
     }
 
-    public static void downloadFromGoogleDrive(String fileId, File outputFile, ProgressCallback callback) throws Exception {
-        String downloadUrl = "https://drive.usercontent.google.com/download?id=" + fileId
-                + "&export=download&authuser=0&confirm=t";
-
+    public static void downloadFile(String downloadUrl, File outputFile, ProgressCallback callback) throws Exception {
         HttpURLConnection conn = (HttpURLConnection) new URL(downloadUrl).openConnection();
         conn.setInstanceFollowRedirects(true);
         conn.setConnectTimeout(30000);
         conn.setReadTimeout(60000);
-        conn.setRequestProperty("User-Agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
 
         int responseCode = conn.getResponseCode();
+        // Redirect takibi için
+        if (responseCode == 301 || responseCode == 302 || responseCode == 303) {
+            String newUrl = conn.getHeaderField("Location");
+            conn.disconnect();
+            downloadFile(newUrl, outputFile, callback);
+            return;
+        }
+
         if (responseCode != 200) {
             conn.disconnect();
-            throw new Exception("Google Drive'dan indirme başarısız. HTTP: " + responseCode
-                    + "\nDosyanın herkese açık paylaşıldığından emin olun.");
+            throw new Exception("İndirme başarısız. HTTP: " + responseCode);
         }
 
         long totalSize = conn.getContentLengthLong();
-
         try (InputStream in = conn.getInputStream();
              FileOutputStream out = new FileOutputStream(outputFile)) {
-            byte[] buffer = new byte[65536]; // 64KB buffer
+            byte[] buffer = new byte[65536];
             long downloaded = 0;
             int bytesRead;
             long lastUIUpdate = System.currentTimeMillis();
@@ -324,8 +372,7 @@ public class LauncherLogic {
                         int percent = (int) (5 + (downloaded * 40 / totalSize));
                         String totalMB = String.format("%.1f", totalSize / 1048576.0);
                         if (callback != null) {
-                            callback.updateProgress(percent,
-                                "İndiriliyor: " + downloadedMB + " MB / " + totalMB + " MB");
+                            callback.updateProgress(percent, "İndiriliyor: " + downloadedMB + " MB / " + totalMB + " MB");
                         }
                     } else {
                         if (callback != null) {
@@ -338,6 +385,13 @@ public class LauncherLogic {
             conn.disconnect();
         }
     }
+
+    public static void downloadFromGoogleDrive(String fileId, File outputFile, ProgressCallback callback) throws Exception {
+        String downloadUrl = "https://drive.usercontent.google.com/download?id=" + fileId
+                + "&export=download&authuser=0&confirm=t";
+        downloadFile(downloadUrl, outputFile, callback);
+    }
+
 
     public static void extractZip(File zipFile, File destDir) throws Exception {
         Path destPath = destDir.toPath().toRealPath();
