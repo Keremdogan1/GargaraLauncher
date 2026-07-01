@@ -6,6 +6,8 @@ import java.awt.*;
 
 public class Main {
     public static void main(String[] args) {
+        JFrame.setDefaultLookAndFeelDecorated(true);
+        JDialog.setDefaultLookAndFeelDecorated(true);
         FlatLightLaf.setup();
         UIManager.put("Button.arc", 10);
         UIManager.put("Component.arc", 10);

@@ -22,10 +22,10 @@ public class DebugConsole extends JFrame {
         if (instance == null) {
             initialize();
         }
-        instance.setAlwaysOnTop(true);
         instance.setVisible(true);
+        instance.setState(Frame.NORMAL);
         instance.toFront();
-        instance.setAlwaysOnTop(false);
+        instance.requestFocus();
     }
     
     private DebugConsole() {
