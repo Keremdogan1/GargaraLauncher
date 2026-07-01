@@ -30,6 +30,7 @@ public class LauncherLogic {
     public static final String MC_VERSION = "1.20.1";
     public static final String FABRIC_VERSION = "0.17.2";
     public static final String FABRIC_VERSION_ID = "fabric-loader-" + FABRIC_VERSION + "-" + MC_VERSION;
+    public static final String CORE_MODS_DRIVE_ID = "13cJC7qSXqpOS3xQhQeVT9GALUB706Kv9";
     public static final String MODS_GITHUB_REPO = "Keremdogan1/GargaraLauncher";
     public static final String EXTRAS_DRIVE_FILE_ID = "1eUdfMy4z_tDQ7FoCvg1hypSIPGtlhg2v";
 
@@ -228,6 +229,12 @@ public class LauncherLogic {
             return;
         }
 
+        File coreModsCache = new File(mcDir, "core_mods_cache.zip");
+        if (!coreModsCache.exists()) {
+            callback.updateProgress(5, "Ana mod paketi önbelleğe indiriliyor (Sadece bir kez yapılır)...");
+            downloadFromGoogleDrive(CORE_MODS_DRIVE_ID, coreModsCache, callback);
+        }
+
         callback.updateProgress(8, "Yeni mod paketi (" + remoteVersion + ") bulundu! Eski modlar siliniyor...");
         if (modsDir.exists()) {
             File[] oldMods = modsDir.listFiles();
@@ -238,13 +245,13 @@ public class LauncherLogic {
             modsDir.mkdirs();
         }
 
-        File modsZip = new File(mcDir, "mods_download.zip");
+        File updateModsZip = new File(mcDir, "update_mods_download.zip");
 
         // Önce JAR içinde gömülü mods.zip var mı kontrol et (offline dağıtım)
         InputStream embeddedMods = LauncherLogic.class.getResourceAsStream("/mods.zip");
         if (embeddedMods != null && localVersion.isEmpty() && downloadUrl == null) {
             callback.updateProgress(8, "Gömülü modlar çıkartılıyor...");
-            try (FileOutputStream fos = new FileOutputStream(modsZip)) {
+            try (FileOutputStream fos = new FileOutputStream(updateModsZip)) {
                 byte[] buffer = new byte[65536];
                 int len;
                 while ((len = embeddedMods.read(buffer)) > 0) {
@@ -255,17 +262,19 @@ public class LauncherLogic {
             }
         } else {
             if (downloadUrl != null) {
-                callback.updateProgress(5, "Yeni modlar GitHub'dan indiriliyor (Çok daha hızlı)...");
-                downloadFile(downloadUrl, modsZip, callback);
+                callback.updateProgress(35, "Değişen modlar GitHub'dan indiriliyor (Çok hızlı)...");
+                downloadFile(downloadUrl, updateModsZip, callback);
             } else {
                 callback.updateProgress(10, "Mod güncellemesi bulunamadı (GitHub Release eksik).");
                 return;
             }
         }
 
-        // ZIP'i mods klasörüne çıkart
-        callback.updateProgress(45, "Modlar kurulum klasörüne çıkartılıyor...");
-        extractZip(modsZip, modsDir);
+        callback.updateProgress(40, "Ana modlar önbellekten çıkartılıyor...");
+        extractZip(coreModsCache, modsDir);
+
+        callback.updateProgress(45, "Güncel modlar (Değişenler) çıkartılıyor...");
+        extractZip(updateModsZip, modsDir);
 
         // Ekstra modları mods klasörüne kopyala
         File extraModsDir = new File(mcDir, "extra_mods");
@@ -285,7 +294,7 @@ public class LauncherLogic {
         Files.writeString(markerFile.toPath(), remoteVersion);
 
         // Geçici zip dosyasını temizle
-        modsZip.delete();
+        updateModsZip.delete();
         callback.updateProgress(50, "Modlar başarıyla güncellendi!");
     }
 
