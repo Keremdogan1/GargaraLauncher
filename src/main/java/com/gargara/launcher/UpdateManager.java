@@ -7,7 +7,7 @@ import java.net.URL;
 
 public class UpdateManager {
     public static final String CURRENT_VERSION = LauncherGUI.LAUNCHER_VERSION.replace("v", "");
-    private static final String API_URL = "https://api.github.com/repos/Keremdogan1/GargaraLauncher/releases/latest";
+    private static final String API_URL = "https://api.github.com/repos/Keremdogan1/GargaraLauncher/releases";
 
     public static void checkUpdate() {
         try {
@@ -27,16 +27,34 @@ public class UpdateManager {
                 reader.close();
 
                 String json = response.toString();
-                String tagName = extractJsonValue(json, "\"tag_name\"");
-                if (tagName != null) {
-                    tagName = tagName.replace("v", "");
-                    if (!tagName.equals(CURRENT_VERSION)) {
-                        // Yeni sürüm var!
-                        String downloadUrl = extractExeDownloadUrl(json);
-                        if (downloadUrl != null) {
-                            showUpdateDialog(tagName, downloadUrl);
+                // Basit bir sekilde json array icindeki objeleri bolelim (Gson kullanmadigimiz icin)
+                int releaseIdx = 0;
+                while ((releaseIdx = json.indexOf("\"tag_name\"", releaseIdx)) != -1) {
+                    int colonIndex = json.indexOf(":", releaseIdx);
+                    int quoteStart = json.indexOf("\"", colonIndex);
+                    int quoteEnd = json.indexOf("\"", quoteStart + 1);
+                    if (quoteStart != -1 && quoteEnd != -1) {
+                        String tagName = json.substring(quoteStart + 1, quoteEnd);
+                        if (!tagName.startsWith("mods-") && !tagName.startsWith("extras-")) {
+                            // Bu bir Launcher surumu
+                            String strippedTag = tagName.replace("v", "");
+                            if (!strippedTag.equals(CURRENT_VERSION)) {
+                                // Exe dosyasini sadece bu release blogu icinde ara
+                                int nextRelease = json.indexOf("\"tag_name\"", quoteEnd);
+                                if (nextRelease == -1) nextRelease = json.length();
+                                String releaseBlock = json.substring(quoteEnd, nextRelease);
+                                String downloadUrl = extractExeDownloadUrl(releaseBlock);
+                                if (downloadUrl != null) {
+                                    showUpdateDialog(strippedTag, downloadUrl);
+                                    return; // Buldugumuz ilk launcher guncellemesini sorduk
+                                }
+                            } else {
+                                // Eger en son launcher surumu su anki surumse guncelleme yok
+                                return;
+                            }
                         }
                     }
+                    releaseIdx = quoteEnd;
                 }
             }
         } catch (Exception e) {
@@ -44,28 +62,15 @@ public class UpdateManager {
         }
     }
 
-    private static String extractJsonValue(String json, String key) {
-        int keyIndex = json.indexOf(key);
-        if (keyIndex == -1) return null;
-        int colonIndex = json.indexOf(":", keyIndex);
-        int quoteStart = json.indexOf("\"", colonIndex);
-        int quoteEnd = json.indexOf("\"", quoteStart + 1);
-        if (quoteStart != -1 && quoteEnd != -1) {
-            return json.substring(quoteStart + 1, quoteEnd);
-        }
-        return null;
-    }
-
-    private static String extractExeDownloadUrl(String json) {
-        // "browser_download_url": "https://...exe" arayacagiz.
+    private static String extractExeDownloadUrl(String block) {
         String searchKey = "\"browser_download_url\"";
         int idx = 0;
-        while ((idx = json.indexOf(searchKey, idx)) != -1) {
-            int colonIndex = json.indexOf(":", idx);
-            int quoteStart = json.indexOf("\"", colonIndex);
-            int quoteEnd = json.indexOf("\"", quoteStart + 1);
+        while ((idx = block.indexOf(searchKey, idx)) != -1) {
+            int colonIndex = block.indexOf(":", idx);
+            int quoteStart = block.indexOf("\"", colonIndex);
+            int quoteEnd = block.indexOf("\"", quoteStart + 1);
             if (quoteStart != -1 && quoteEnd != -1) {
-                String url = json.substring(quoteStart + 1, quoteEnd);
+                String url = block.substring(quoteStart + 1, quoteEnd);
                 if (url.toLowerCase().endsWith(".exe")) {
                     return url;
                 }

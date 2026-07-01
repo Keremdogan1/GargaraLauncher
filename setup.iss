@@ -1,14 +1,14 @@
 ﻿[Setup]
 AppName=Gargara Launcher
-AppVersion=3.2.7
-VersionInfoVersion=3.2.7.0
+AppVersion=3.2.8
+VersionInfoVersion=3.2.8.0
 VersionInfoCompany=Karsoft
 VersionInfoDescription=Gargara Launcher Kurulumu
 VersionInfoProductName=Gargara Launcher
 DefaultDirName={autopf}\GargaraLauncher
 DefaultGroupName=Gargara Launcher
 OutputDir=../Releases
-OutputBaseFilename=GargaraSetup_v3_2_7
+OutputBaseFilename=GargaraSetup_v3_2_8
 Compression=lzma2/ultra64
 SolidCompression=yes
 SetupIconFile=src\main\resources\logo.ico
